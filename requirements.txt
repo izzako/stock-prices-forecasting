@@ -1,0 +1,11 @@
+yfinance
+pandas
+numpy
+scikit-learn
+xgboost
+lightgbm
+mlflow
+matplotlib
+seaborn
+TA-Lib
+requests

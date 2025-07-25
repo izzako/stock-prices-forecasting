@@ -3,6 +3,13 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# MLFlow
+# Mlflow
+mlruns/
+mlartifacts/
+outputs/
+mlruns.db
+
 # C extensions
 *.so
 
@@ -205,3 +212,5 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+sandbox.*
