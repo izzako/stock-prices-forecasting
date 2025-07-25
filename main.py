@@ -279,7 +279,7 @@ class StockPriceRegressor:
         
         return baselines
     
-    def train_models(self, test_size=0.2, random_state=42):
+    def train_models(self, test_size=0.15, random_state=42):
         """
         Train multiple regression models and track experiments with MLflow.
         
@@ -452,11 +452,12 @@ class StockPriceRegressor:
             forecast = model.predict(latest_features)[0]
         
         current_price = self.data['Close'].iloc[-1]
-        
+        today = self.data.iloc[-1].name.strftime('%Y-%m-%d')
+        forecast_date = (self.data.index[-1] + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
         print(f"\n=== Forecast Results ===")
         print(f"Model used: {model_name}")
-        print(f"Current price: {current_price:.2f}")
-        print(f"Predicted next day price: {forecast:.2f}")
+        print(f"Current price at {today}: {current_price:.2f}")
+        print(f"Predicted next day price at {forecast_date}: {forecast:.2f}")
         print(f"Predicted change: {forecast - current_price:.2f} ({((forecast - current_price) / current_price) * 100:.2f}%)")
         
         return forecast
@@ -971,74 +972,51 @@ def main():
         print(f"   Regression Experiment: 'indonesian_stock_regression'")
         print(f"   Classification Experiment: 'indonesian_stock_classification'")
         
-        print("\n" + "="*80)
-        print("✅ PIPELINE COMPLETED SUCCESSFULLY!")
-        print("="*80)
-        print("🌐 Check MLflow UI for detailed experiment tracking:")
-        print("   Run: mlflow ui")
-        print("   Then visit: http://localhost:5000")
-        print("="*80)
+       
         
     except Exception as e:
         print(f"❌ Error in pipeline: {e}")
         raise
 
 
-def run_regression_only():
+def run_regression():
     """
-    Function to run only the regression pipeline.
+    Function to run the regression pipeline.
     """
     STOCK_SYMBOL = "BBCA.JK"
     
     try:
-        print("🎯 RUNNING REGRESSION PIPELINE ONLY")
+        print("🎯 RUNNING REGRESSION PIPELINE")
         print("="*50)
         
-        regressor = StockPriceRegressor(STOCK_SYMBOL, "stock_regression_only")
-        regressor.load_data(period="2y")
+        regressor = StockPriceRegressor(STOCK_SYMBOL, "stock_regression_forecasting")
+        regressor.load_data(period="2y",interval='1d')
         regressor.explore_data()
         regressor.engineer_features()
         regressor.train_models()
         regressor.create_summary_report()
         
+        
+        print("\n" + "="*80)
         print("✅ Regression pipeline completed!")
+        print("="*80)
+        print("🌐 Check MLflow UI for detailed experiment tracking:")
+        print("   Run: mlflow server --host 127.0.0.1 --port 8080")
+        print("   Then visit: http://localhost:8080")
+        print("="*80)
         
     except Exception as e:
         print(f"❌ Error in regression pipeline: {e}")
         raise
 
-
-def run_classification_only():
-    """
-    Function to run only the classification pipeline.
-    """
-    STOCK_SYMBOL = "BBCA.JK"
-    
-    try:
-        print("🎯 RUNNING CLASSIFICATION PIPELINE ONLY")
-        print("="*50)
-        
-        classifier = StockPriceClassifier(STOCK_SYMBOL, "stock_classification_only")
-        classifier.load_data(period="2y")
-        classifier.engineer_features()
-        classifier.train_models()
-        classifier.create_summary_report()
-        
-        print("✅ Classification pipeline completed!")
-        
-    except Exception as e:
-        print(f"❌ Error in classification pipeline: {e}")
-        raise
-
-
 if __name__ == "__main__":
     # You can run different pipelines by changing the function call:
     
     # Run both regression and classification (default)
-    main()
+    # main()
     
     # Or run only regression:
-    # run_regression_only()
+    run_regression_only()
     
     # Or run only classification:
     # run_classification_only()

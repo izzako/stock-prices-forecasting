@@ -53,6 +53,6 @@ fi
 
 echo ""
 echo "🎉 Setup complete!"
-echo "You can now run: python3 stock_forecasting.py"
+echo "You can now run: python stock_forecasting.py"
 echo ""
 echo "If some packages failed to install, don't worry - the script will work with fallbacks."
