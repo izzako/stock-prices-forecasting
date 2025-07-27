@@ -4,14 +4,16 @@ import numpy as np
 from datetime import datetime, timedelta
 import warnings
 import os
+
 warnings.filterwarnings('ignore')
 
 # Machine Learning Libraries
 from sklearn.model_selection import train_test_split, TimeSeriesSplit
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.neural_network import MLPRegressor
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, classification_report, confusion_matrix
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 # Optional libraries - handle import errors gracefully
 try:
@@ -32,6 +34,10 @@ except ImportError:
 import mlflow
 import mlflow.sklearn
 from mlflow.tracking import MlflowClient
+from mlflow.types.schema import Schema, ColSpec
+from mlflow.models.signature import ModelSignature
+
+mlflow.end_run()  # Ensure no previous runs are active
 
 # Optional MLflow integrations
 if XGB_AVAILABLE:
@@ -75,7 +81,7 @@ class StockPriceRegressor:
         self.target = None
         self.scaler = StandardScaler()
         self.models = {}
-        
+
         # Initialize MLflow
         mlflow.set_experiment(self.experiment_name)
         
@@ -143,7 +149,7 @@ class StockPriceRegressor:
         
         plt.tight_layout()
         plt.savefig('data_exploration.png', dpi=300, bbox_inches='tight')
-        plt.show()
+        # plt.show()
         
     def engineer_features(self):
         """
@@ -243,9 +249,18 @@ class StockPriceRegressor:
         self.features = df[feature_cols]
         self.target = df['Target']
         
+        # Create Schema for MLflow model signature
+        input_schema = Schema([
+            ColSpec("double", col) for col in feature_cols
+            
+        ])
+        output_schema = Schema([ColSpec("double")])
+        self.signature = ModelSignature(inputs=input_schema, outputs=output_schema)
+
         print(f"Features created: {len(feature_cols)}")
         print(f"Final dataset shape: {df.shape}")
         print(f"Feature columns: {feature_cols[:10]}...")  # Show first 10 features
+        # print(f"Feature types:\n{self.features.dtypes}")
         
         return self.features, self.target
     
@@ -257,13 +272,7 @@ class StockPriceRegressor:
             X_test: Test features
             y_test: Test target values
         """
-        print("\n=== Creating Baseline Models ===")
-        
-        # Naive forecast (previous day's price)
-        naive_pred = X_test['Close_Lag_1'].values
-        naive_rmse = np.sqrt(mean_squared_error(y_test, naive_pred))
-        naive_mae = mean_absolute_error(y_test, naive_pred)
-        naive_r2 = r2_score(y_test, naive_pred)
+        print("\n=== Creating Baseline Model(s) ===")
         
         # Moving average forecast
         ma_pred = X_test['MA_5'].values
@@ -272,16 +281,40 @@ class StockPriceRegressor:
         ma_r2 = r2_score(y_test, ma_pred)
         
         baselines = {
-            'naive': {'rmse': naive_rmse, 'mae': naive_mae, 'r2': naive_r2},
             'moving_average': {'rmse': ma_rmse, 'mae': ma_mae, 'r2': ma_r2}
         }
         
-        print(f"Naive forecast RMSE: {naive_rmse:.4f}")
+        with mlflow.start_run(run_name=f"baseline_model_{self.stock_symbol}"):
+            mlflow.log_param("model_type", "Baseline Model: Moving Average 5 Days")
+            mlflow.log_param("stock_symbol", self.stock_symbol)
+            mlflow.log_param("test_size", np.nan)
+            mlflow.log_param("n_features", 1)
+            mlflow.log_param("train_size", np.nan)
+            mlflow.log_metric("rmse", baselines['moving_average']['rmse'])
+            mlflow.log_metric("mae", baselines['moving_average']['mae'])
+            mlflow.log_metric("r2_score", baselines['moving_average']['r2'])
+            mlflow.log_metric("improvement_over_ma", 0)
+            
+            #plot moving average predictions
+            os.makedirs('regressor_image', exist_ok=True)
+            plt.figure(figsize=(12, 6))
+            plt.plot(y_test.values[:100], label='Actual', alpha=0.7)
+            plt.plot(ma_pred[:100], label='Predicted', alpha=0.7)
+            plt.title(f'baseline - Actual vs Predicted (First 100 test samples)')
+            plt.xlabel('Sample')
+            plt.ylabel('Price')
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+            plot_path = f'regressor_image/baseline_predictions.png'
+            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+            mlflow.log_artifact(plot_path)
+            plt.close()
+            
         print(f"Moving average RMSE: {ma_rmse:.4f}")
         
         return baselines
     
-    def train_models(self, test_size=0.15, random_state=42):
+    def train_models(self, test_size=0.1, random_state=42):
         """
         Train multiple regression models and track experiments with MLflow.
         
@@ -315,20 +348,29 @@ class StockPriceRegressor:
         models_config = {
             'linear_regression': LinearRegression(),
             'random_forest': RandomForestRegressor(n_estimators=200,max_depth=8, random_state=random_state),
-            'gradient_boosting': GradientBoostingRegressor(n_estimators=200,max_depth=8, random_state=random_state)
+            'gradient_boosting': GradientBoostingRegressor(n_estimators=200,max_depth=8, random_state=random_state),
+            # 'mlp_regressor': MLPRegressor(hidden_layer_sizes=(256, 128), 
+            #                               max_iter=1000,
+            #                               shuffle=False,
+            #                               learning_rate_init=0.001,
+            #                               learning_rate='adaptive',
+            #                               early_stopping=True, 
+            #                               random_state=random_state)
         }
         
         # Add XGBoost if available
         if XGB_AVAILABLE:
-            models_config['xgboost'] = xgb.XGBRegressor(n_estimators=200, max_depth=8, random_state=random_state)
+            models_config['xgboost'] = xgb.XGBRegressor(n_estimators=200, max_depth=16, random_state=random_state)
         
         # Add LightGBM if available
         if LGB_AVAILABLE:
-            models_config['lightgbm'] = lgb.LGBMRegressor(n_estimators=200, max_depth=8, random_state=random_state, verbose=-1)
+            models_config['lightgbm'] = lgb.LGBMRegressor(n_estimators=200, max_depth=16, random_state=random_state, verbose=-1)
         
         best_model = None
         best_rmse = float('inf')
         
+        
+
         # Train each model
         for model_name, model in models_config.items():
             with mlflow.start_run(run_name=f"{model_name}_{self.stock_symbol}"):
@@ -362,17 +404,15 @@ class StockPriceRegressor:
                 mlflow.log_metric("r2_score", r2)
                 
                 # Log baseline comparison
-                mlflow.log_metric("baseline_naive_rmse", baselines['naive']['rmse'])
-                mlflow.log_metric("baseline_ma_rmse", baselines['moving_average']['rmse'])
                 mlflow.log_metric("improvement_over_ma", (baselines['moving_average']['rmse'] - rmse) / baselines['moving_average']['rmse'])
                 
                 # Log model with appropriate MLflow integration
                 if model_name == 'xgboost' and XGB_AVAILABLE:
-                    mlflow.xgboost.log_model(model, name="model")
+                    mlflow.xgboost.log_model(model, name="model",signature=self.signature)
                 elif model_name == 'lightgbm' and LGB_AVAILABLE:
-                    mlflow.lightgbm.log_model(model, name="model")
+                    mlflow.lightgbm.log_model(model, name="model",signature=self.signature)
                 else:
-                    mlflow.sklearn.log_model(model, name="model")
+                    mlflow.sklearn.log_model(model, name="model",signature=self.signature)
                 
                 # Create and log prediction plot
                 os.makedirs('regressor_image', exist_ok=True)
@@ -414,11 +454,11 @@ class StockPriceRegressor:
             
             best_model_obj = self.models[best_model]['model']
             if best_model == 'xgboost' and XGB_AVAILABLE:
-                mlflow.xgboost.log_model(best_model_obj, name="best_model", registered_model_name=f"{self.stock_symbol}_regressor")
+                mlflow.xgboost.log_model(best_model_obj, name="best_model", registered_model_name=f"{self.stock_symbol}_regressor",signature=self.signature)
             elif best_model == 'lightgbm' and LGB_AVAILABLE:
-                mlflow.lightgbm.log_model(best_model_obj, name="best_model", registered_model_name=f"{self.stock_symbol}_regressor")
+                mlflow.lightgbm.log_model(best_model_obj, name="best_model", registered_model_name=f"{self.stock_symbol}_regressor",signature=self.signature)
             else:
-                mlflow.sklearn.log_model(best_model_obj, name="best_model", registered_model_name=f"{self.stock_symbol}_regressor")
+                mlflow.sklearn.log_model(best_model_obj, name="best_model", registered_model_name=f"{self.stock_symbol}_regressor",signature=self.signature)
         
         return self.models, best_model
     
@@ -526,7 +566,7 @@ if __name__ == "__main__":
     # main()
     
     # Or run only regression:
-    run_regression_only()
+    run_regression()
     
     # Or run only classification:
     # run_classification_only()
