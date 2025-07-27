@@ -9,8 +9,8 @@ warnings.filterwarnings('ignore')
 # Machine Learning Libraries
 from sklearn.model_selection import train_test_split, TimeSeriesSplit
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, RandomForestClassifier, GradientBoostingClassifier
-from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, classification_report, confusion_matrix
 
 # Optional libraries - handle import errors gracefully
@@ -96,7 +96,9 @@ class StockPriceRegressor:
                 raise ValueError(f"No data found for symbol {self.stock_symbol}")
                 
             print(f"Data loaded successfully. Shape: {self.data.shape}")
-            print(f"Date range: {self.data.index[0]} to {self.data.index[-1]}")
+            init_date = self.data.index[0].strftime('%Y-%m-%d')
+            today = self.data.index[-1].strftime('%Y-%m-%d')
+            print(f"Date range: {init_date} to {today}")
             
             return self.data
             
@@ -219,7 +221,7 @@ class StockPriceRegressor:
             df['BB_Position'] = (df['Close'] - df['BB_Lower']) / (df['BB_Upper'] - df['BB_Lower'])
         
         # Lag features
-        for lag in [1, 2, 3, 5, 10]:
+        for lag in [1, 5, 10]:
             df[f'Close_Lag_{lag}'] = df['Close'].shift(lag)
             df[f'Volume_Lag_{lag}'] = df['Volume'].shift(lag)
             df[f'Return_Lag_{lag}'] = df['Price_Change'].shift(lag)
@@ -312,17 +314,17 @@ class StockPriceRegressor:
         # Define models to train (conditionally include XGB and LGB)
         models_config = {
             'linear_regression': LinearRegression(),
-            'random_forest': RandomForestRegressor(n_estimators=100, random_state=random_state),
-            'gradient_boosting': GradientBoostingRegressor(n_estimators=100, random_state=random_state)
+            'random_forest': RandomForestRegressor(n_estimators=200,max_depth=8, random_state=random_state),
+            'gradient_boosting': GradientBoostingRegressor(n_estimators=200,max_depth=8, random_state=random_state)
         }
         
         # Add XGBoost if available
         if XGB_AVAILABLE:
-            models_config['xgboost'] = xgb.XGBRegressor(n_estimators=100, random_state=random_state)
+            models_config['xgboost'] = xgb.XGBRegressor(n_estimators=200, max_depth=8, random_state=random_state)
         
         # Add LightGBM if available
         if LGB_AVAILABLE:
-            models_config['lightgbm'] = lgb.LGBMRegressor(n_estimators=100, random_state=random_state, verbose=-1)
+            models_config['lightgbm'] = lgb.LGBMRegressor(n_estimators=200, max_depth=8, random_state=random_state, verbose=-1)
         
         best_model = None
         best_rmse = float('inf')
@@ -339,13 +341,9 @@ class StockPriceRegressor:
                 mlflow.log_param("n_features", X_train.shape[1])
                 mlflow.log_param("train_size", len(X_train))
                 
-                # Use scaled data for linear models, original for tree-based
-                if model_name in ['linear_regression']:
-                    X_train_model = X_train_scaled
-                    X_test_model = X_test_scaled
-                else:
-                    X_train_model = X_train
-                    X_test_model = X_test
+                X_train_model = X_train_scaled
+                X_test_model = X_test_scaled
+            
                 
                 # Train model
                 model.fit(X_train_model, y_train)
@@ -366,7 +364,7 @@ class StockPriceRegressor:
                 # Log baseline comparison
                 mlflow.log_metric("baseline_naive_rmse", baselines['naive']['rmse'])
                 mlflow.log_metric("baseline_ma_rmse", baselines['moving_average']['rmse'])
-                mlflow.log_metric("improvement_over_naive", (baselines['naive']['rmse'] - rmse) / baselines['naive']['rmse'])
+                mlflow.log_metric("improvement_over_ma", (baselines['moving_average']['rmse'] - rmse) / baselines['moving_average']['rmse'])
                 
                 # Log model with appropriate MLflow integration
                 if model_name == 'xgboost' and XGB_AVAILABLE:
@@ -400,7 +398,7 @@ class StockPriceRegressor:
                     'predictions': y_pred
                 }
                 
-                # Track best model
+                # Track best model : DEFINED BY RMSE
                 if rmse < best_rmse:
                     best_rmse = rmse
                     best_model = model_name
@@ -424,13 +422,12 @@ class StockPriceRegressor:
         
         return self.models, best_model
     
-    def generate_forecast(self, model_name=None, days_ahead=1):
+    def generate_forecast(self, model_name=None):
         """
         Generate forecast for the next trading day(s).
         
         Args:
             model_name (str): Name of the model to use for forecasting
-            days_ahead (int): Number of days to forecast
         """
         if not self.models:
             raise ValueError("No models trained. Call train_models() first.")
@@ -444,16 +441,14 @@ class StockPriceRegressor:
         # Get the latest features
         latest_features = self.features.iloc[-1:].copy()
         
-        # Scale if needed
-        if model_name in ['linear_regression']:
-            latest_features_scaled = self.scaler.transform(latest_features)
-            forecast = model.predict(latest_features_scaled)[0]
-        else:
-            forecast = model.predict(latest_features)[0]
+        #scaled the input
+        latest_features_scaled = self.scaler.transform(latest_features)
+        forecast = model.predict(latest_features_scaled)[0]
         
+        #forecast tomorrow's price
         current_price = self.data['Close'].iloc[-1]
         today = self.data.iloc[-1].name.strftime('%Y-%m-%d')
-        forecast_date = (self.data.index[-1] + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
+        forecast_date = (self.data.index[-1] + timedelta(days=1)).strftime('%Y-%m-%d')
         print(f"\n=== Forecast Results ===")
         print(f"Model used: {model_name}")
         print(f"Current price at {today}: {current_price:.2f}")
@@ -492,491 +487,6 @@ class StockPriceRegressor:
         forecast = self.generate_forecast(best_model)
         
         return best_model, forecast
-
-
-class StockPriceClassifier:
-    """
-    A comprehensive stock price classification system with MLflow integration.
-    
-    This class predicts whether the stock price will increase by at least 5%
-    on the next trading day (binary classification).
-    """
-    
-    def __init__(self, stock_symbol, experiment_name="stock_classification"):
-        """
-        Initialize the classifier.
-        
-        Args:
-            stock_symbol (str): Stock ticker symbol (e.g., 'BBCA.JK')
-            experiment_name (str): MLflow experiment name
-        """
-        self.stock_symbol = stock_symbol
-        self.experiment_name = experiment_name
-        self.data = None
-        self.features = None
-        self.target = None
-        self.scaler = StandardScaler()
-        self.models = {}
-        
-        # Initialize MLflow
-        mlflow.set_experiment(self.experiment_name)
-        
-    def load_data(self, period="2y", interval="1d"):
-        """
-        Load stock data using yfinance.
-        
-        Args:
-            period (str): Data period (e.g., '2y', '5y')
-            interval (str): Data interval (e.g., '1d', '1h')
-        """
-        try:
-            print(f"Loading data for {self.stock_symbol}...")
-            ticker = yf.Ticker(self.stock_symbol)
-            self.data = ticker.history(period=period, interval=interval)
-            
-            if self.data.empty:
-                raise ValueError(f"No data found for symbol {self.stock_symbol}")
-                
-            print(f"Data loaded successfully. Shape: {self.data.shape}")
-            print(f"Date range: {self.data.index[0]} to {self.data.index[-1]}")
-            
-            return self.data
-            
-        except Exception as e:
-            print(f"Error loading data: {e}")
-            raise
-    
-    def engineer_features(self):
-        """
-        Create technical indicators and lag features for classification.
-        """
-        if self.data is None:
-            raise ValueError("Data not loaded. Call load_data() first.")
-            
-        print("\n=== Feature Engineering for Classification ===")
-        df = self.data.copy()
-        
-        # Basic price features
-        df['High_Low_Pct'] = (df['High'] - df['Low']) / df['Close'] * 100
-        df['Price_Change'] = df['Close'].pct_change()
-        
-        # Moving averages
-        for window in [5, 10, 20, 50]:
-            df[f'MA_{window}'] = df['Close'].rolling(window=window).mean()
-            df[f'MA_{window}_ratio'] = df['Close'] / df[f'MA_{window}']
-        
-        # Volatility features
-        df['Volatility_5'] = df['Close'].rolling(window=5).std()
-        df['Volatility_20'] = df['Close'].rolling(window=20).std()
-        
-        # Technical indicators (same as regression model)
-        if TALIB_AVAILABLE:
-            try:
-                df['RSI'] = talib.RSI(df['Close'].values, timeperiod=14)
-                macd, macd_signal, macd_hist = talib.MACD(df['Close'].values)
-                df['MACD'] = macd
-                df['MACD_Signal'] = macd_signal
-                df['MACD_Hist'] = macd_hist
-                bb_upper, bb_middle, bb_lower = talib.BBANDS(df['Close'].values)
-                df['BB_Upper'] = bb_upper
-                df['BB_Lower'] = bb_lower
-                df['BB_Width'] = (bb_upper - bb_lower) / bb_middle
-                df['BB_Position'] = (df['Close'] - bb_lower) / (bb_upper - bb_lower)
-                df['Stoch_K'], df['Stoch_D'] = talib.STOCH(df['High'].values, 
-                                                          df['Low'].values, 
-                                                          df['Close'].values)
-            except Exception as e:
-                print(f"Error with TA-Lib indicators: {e}")
-        else:
-            # Manual technical indicators
-            delta = df['Close'].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            rs = gain / loss
-            df['RSI'] = 100 - (100 / (1 + rs))
-            
-            exp1 = df['Close'].ewm(span=12).mean()
-            exp2 = df['Close'].ewm(span=26).mean()
-            df['MACD'] = exp1 - exp2
-            df['MACD_Signal'] = df['MACD'].ewm(span=9).mean()
-            df['MACD_Hist'] = df['MACD'] - df['MACD_Signal']
-            
-            bb_middle = df['Close'].rolling(window=20).mean()
-            bb_std = df['Close'].rolling(window=20).std()
-            df['BB_Upper'] = bb_middle + (bb_std * 2)
-            df['BB_Lower'] = bb_middle - (bb_std * 2)
-            df['BB_Width'] = (df['BB_Upper'] - df['BB_Lower']) / bb_middle
-            df['BB_Position'] = (df['Close'] - df['BB_Lower']) / (df['BB_Upper'] - df['BB_Lower'])
-        
-        # Lag features
-        for lag in [1, 2, 3, 5, 10]:
-            df[f'Close_Lag_{lag}'] = df['Close'].shift(lag)
-            df[f'Volume_Lag_{lag}'] = df['Volume'].shift(lag)
-            df[f'Return_Lag_{lag}'] = df['Price_Change'].shift(lag)
-        
-        # Rolling statistics
-        for window in [5, 10, 20]:
-            df[f'Close_Rolling_Max_{window}'] = df['Close'].rolling(window=window).max()
-            df[f'Close_Rolling_Min_{window}'] = df['Close'].rolling(window=window).min()
-            df[f'Volume_Rolling_Mean_{window}'] = df['Volume'].rolling(window=window).mean()
-        
-        # Classification target: 1 if next day's price ≥ 5% higher, 0 otherwise
-        df['Next_Day_Close'] = df['Close'].shift(-1)
-        df['Price_Increase_5pct'] = ((df['Next_Day_Close'] - df['Close']) / df['Close'] >= 0.015).astype(int)
-        
-        # Remove rows with NaN values
-        df = df.dropna()
-        
-        # Separate features and target
-        feature_cols = [col for col in df.columns if col not in ['Price_Increase_5pct', 'Next_Day_Close', 'Open', 'High', 'Low', 'Close', 'Volume']]
-        self.features = df[feature_cols]
-        self.target = df['Price_Increase_5pct']
-        
-        print(f"Features created: {len(feature_cols)}")
-        print(f"Final dataset shape: {df.shape}")
-        print(f"Target distribution: {self.target.value_counts().to_dict()}")
-        print(f"Positive class ratio: {self.target.mean():.3f}")
-        
-        return self.features, self.target
-    
-    def create_baseline_model(self, y_test):
-        """
-        Create simple baseline models for comparison.
-        
-        Args:
-            y_test: Test target values
-        """
-        print("\n=== Creating Baseline Models ===")
-        
-        # Random baseline (based on class distribution in training)
-        positive_ratio = self.target.mean()
-        random_pred = np.random.choice([0, 1], size=len(y_test), p=[1-positive_ratio, positive_ratio])
-        random_acc = accuracy_score(y_test, random_pred)
-        
-        # Majority class baseline (always predict most common class)
-        majority_class = self.target.mode()[0]
-        majority_pred = np.full(len(y_test), majority_class)
-        majority_acc = accuracy_score(y_test, majority_pred)
-        
-        baselines = {
-            'random': {'accuracy': random_acc},
-            'majority_class': {'accuracy': majority_acc}
-        }
-        
-        print(f"Random baseline accuracy: {random_acc:.4f}")
-        print(f"Majority class baseline accuracy: {majority_acc:.4f}")
-        
-        return baselines
-    
-    def train_models(self, test_size=0.2, random_state=42):
-        """
-        Train multiple classification models and track experiments with MLflow.
-        
-        Args:
-            test_size (float): Proportion of data for testing
-            random_state (int): Random seed for reproducibility
-        """
-        if self.features is None or self.target is None:
-            raise ValueError("Features not engineered. Call engineer_features() first.")
-        
-        print("\n=== Training Classification Models ===")
-        
-        # Split data (time series aware)
-        split_idx = int(len(self.features) * (1 - test_size))
-        X_train = self.features.iloc[:split_idx]
-        X_test = self.features.iloc[split_idx:]
-        y_train = self.target.iloc[:split_idx]
-        y_test = self.target.iloc[split_idx:]
-        
-        print(f"Training set size: {len(X_train)}")
-        print(f"Test set size: {len(X_test)}")
-        
-        # Scale features
-        X_train_scaled = self.scaler.fit_transform(X_train)
-        X_test_scaled = self.scaler.transform(X_test)
-        
-        # Create baseline models
-        baselines = self.create_baseline_model(y_test)
-        
-        # Define models to train
-        models_config = {
-            'logistic_regression': LogisticRegression(random_state=random_state, max_iter=1000),
-            'random_forest': RandomForestClassifier(n_estimators=100, random_state=random_state),
-            'gradient_boosting': GradientBoostingClassifier(n_estimators=100, random_state=random_state)
-        }
-        
-        # Add XGBoost if available
-        if XGB_AVAILABLE:
-            models_config['xgboost'] = xgb.XGBClassifier(n_estimators=100, random_state=random_state)
-        
-        # Add LightGBM if available
-        if LGB_AVAILABLE:
-            models_config['lightgbm'] = lgb.LGBMClassifier(n_estimators=100, random_state=random_state, verbose=-1)
-        
-        best_model = None
-        best_f1 = 0
-        
-        # Train each model
-        for model_name, model in models_config.items():
-            with mlflow.start_run(run_name=f"{model_name}_{self.stock_symbol}_classifier"):
-                print(f"\nTraining {model_name}...")
-                
-                # Log parameters
-                mlflow.log_param("model_type", model_name)
-                mlflow.log_param("stock_symbol", self.stock_symbol)
-                mlflow.log_param("test_size", test_size)
-                mlflow.log_param("n_features", X_train.shape[1])
-                mlflow.log_param("train_size", len(X_train))
-                mlflow.log_param("positive_class_ratio", y_train.mean())
-                
-                # Use scaled data for logistic regression, original for tree-based
-                if model_name in ['logistic_regression']:
-                    X_train_model = X_train_scaled
-                    X_test_model = X_test_scaled
-                else:
-                    X_train_model = X_train
-                    X_test_model = X_test
-                
-                # Train model
-                model.fit(X_train_model, y_train)
-                
-                # Make predictions
-                y_pred = model.predict(X_test_model)
-                y_pred_proba = model.predict_proba(X_test_model)[:, 1]
-                
-                # Calculate metrics
-                accuracy = accuracy_score(y_test, y_pred)
-                precision = precision_score(y_test, y_pred, zero_division=0)
-                recall = recall_score(y_test, y_pred, zero_division=0)
-                f1 = f1_score(y_test, y_pred, zero_division=0)
-                
-                try:
-                    auc_roc = roc_auc_score(y_test, y_pred_proba)
-                except:
-                    auc_roc = 0.5  # If ROC AUC can't be calculated
-                
-                # Log metrics
-                mlflow.log_metric("accuracy", accuracy)
-                mlflow.log_metric("precision", precision)
-                mlflow.log_metric("recall", recall)
-                mlflow.log_metric("f1_score", f1)
-                mlflow.log_metric("auc_roc", auc_roc)
-                
-                # Log baseline comparison
-                mlflow.log_metric("baseline_random_acc", baselines['random']['accuracy'])
-                mlflow.log_metric("baseline_majority_acc", baselines['majority_class']['accuracy'])
-                mlflow.log_metric("improvement_over_majority", accuracy - baselines['majority_class']['accuracy'])
-                
-                # Log model
-                if model_name == 'xgboost' and XGB_AVAILABLE:
-                    mlflow.xgboost.log_model(model,name= "model")
-                elif model_name == 'lightgbm' and LGB_AVAILABLE:
-                    mlflow.lightgbm.log_model(model,name= "model")
-                else:
-                    mlflow.sklearn.log_model(model,name= "model")
-                
-                # Create and log confusion matrix plot
-                os.makedirs('classifier_image', exist_ok=True)
-                cm = confusion_matrix(y_test, y_pred)
-                plt.figure(figsize=(8, 6))
-                sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-                plt.title(f'{model_name} - Confusion Matrix')
-                plt.xlabel('Predicted')
-                plt.ylabel('Actual')
-                plot_path = f'classifier_image/{model_name}_confusion_matrix.png'
-                plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-                mlflow.log_artifact(plot_path)
-                plt.close()
-                
-                # Store model and results
-                self.models[model_name] = {
-                    'model': model,
-                    'accuracy': accuracy,
-                    'precision': precision,
-                    'recall': recall,
-                    'f1_score': f1,
-                    'auc_roc': auc_roc,
-                    'predictions': y_pred,
-                    'probabilities': y_pred_proba
-                }
-                
-                # Track best model based on F1 score
-                if f1 > best_f1:
-                    best_f1 = f1
-                    best_model = model_name
-                
-                print(f"{model_name} - Accuracy: {accuracy:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}")
-        
-        print(f"\nBest model: {best_model} (F1: {best_f1:.4f})")
-        
-        # Register best model
-        with mlflow.start_run(run_name=f"best_classifier_{self.stock_symbol}"):
-            mlflow.log_param("best_model", best_model)
-            mlflow.log_metric("best_f1_score", best_f1)
-            
-            best_model_obj = self.models[best_model]['model']
-            if best_model == 'xgboost' and XGB_AVAILABLE:
-                mlflow.xgboost.log_model(best_model_obj,name= "best_model", registered_model_name=f"{self.stock_symbol}_classifier")
-            elif best_model == 'lightgbm' and LGB_AVAILABLE:
-                mlflow.lightgbm.log_model(best_model_obj,name= "best_model", registered_model_name=f"{self.stock_symbol}_classifier")
-            else:
-                mlflow.sklearn.log_model(best_model_obj,name= "best_model", registered_model_name=f"{self.stock_symbol}_classifier")
-        
-        return self.models, best_model
-    
-    def generate_prediction(self, model_name=None):
-        """
-        Generate prediction for the next trading day.
-        
-        Args:
-            model_name (str): Name of the model to use for prediction
-        """
-        if not self.models:
-            raise ValueError("No models trained. Call train_models() first.")
-        
-        if model_name is None:
-            # Use the best model (highest F1 score)
-            model_name = max(self.models.keys(), key=lambda k: self.models[k]['f1_score'])
-        
-        model = self.models[model_name]['model']
-        
-        # Get the latest features
-        latest_features = self.features.iloc[-1:].copy()
-        
-        # Scale if needed
-        if model_name in ['logistic_regression']:
-            latest_features_scaled = self.scaler.transform(latest_features)
-            prediction = model.predict(latest_features_scaled)[0]
-            prob = model.predict_proba(latest_features_scaled)[0][1]
-        else:
-            prediction = model.predict(latest_features)[0]
-            prob = model.predict_proba(latest_features)[0][1]
-        
-        current_price = self.data['Close'].iloc[-1]
-        
-        print(f"\n=== Classification Prediction Results ===")
-        print(f"Model used: {model_name}")
-        print(f"Current price: {current_price:.2f}")
-        print(f"Prediction: {'📈 Price will increase ≥5%' if prediction == 1 else '📉 Price will NOT increase ≥5%'}")
-        print(f"Confidence (probability): {prob:.3f}")
-        
-        return prediction, prob
-    
-    def create_summary_report(self):
-        """Create a comprehensive summary report."""
-        if not self.models:
-            raise ValueError("No models trained. Call train_models() first.")
-        
-        print("\n" + "="*60)
-        print(f"STOCK PRICE CLASSIFICATION REPORT - {self.stock_symbol}")
-        print("="*60)
-        
-        print(f"\nData Summary:")
-        print(f"- Period: {self.data.index[0].date()} to {self.data.index[-1].date()}")
-        print(f"- Total samples: {len(self.data)}")
-        print(f"- Features used: {len(self.features.columns)}")
-        print(f"- Positive class ratio: {self.target.mean():.3f}")
-        
-        print(f"\nModel Performance:")
-        for model_name, results in self.models.items():
-            print(f"- {model_name.upper()}:")
-            print(f"  * Accuracy: {results['accuracy']:.4f}")
-            print(f"  * Precision: {results['precision']:.4f}")
-            print(f"  * Recall: {results['recall']:.4f}")
-            print(f"  * F1-Score: {results['f1_score']:.4f}")
-            print(f"  * AUC-ROC: {results['auc_roc']:.4f}")
-        
-        # Best model
-        best_model = max(self.models.keys(), key=lambda k: self.models[k]['f1_score'])
-        print(f"\nBest Model: {best_model.upper()}")
-        print(f"F1-Score: {self.models[best_model]['f1_score']:.4f}")
-        
-        # Generate prediction
-        prediction, prob = self.generate_prediction(best_model)
-        
-        return best_model, prediction, prob
-
-
-def main():
-    """
-    Main function to run both stock price regression and classification pipelines.
-    """
-    # Configuration
-    STOCK_SYMBOL = "BBCA.JK"  # Bank Central Asia (Indonesian stock)
-    
-    try:
-        print("🏦 INDONESIAN STOCK ANALYSIS PIPELINE")
-        print("="*60)
-        
-        # =====================
-        # REGRESSION PIPELINE
-        # =====================
-        print("\n🎯 STARTING REGRESSION PIPELINE (Price Forecasting)")
-        print("-" * 50)
-        
-        # Initialize regressor
-        regressor = StockPriceRegressor(STOCK_SYMBOL, "indonesian_stock_regression")
-        
-        # Load and explore data
-        regressor.load_data(period="2y")
-        regressor.explore_data()
-        
-        # Engineer features
-        regressor.engineer_features()
-        
-        # Train models
-        regression_models, best_regression_model = regressor.train_models()
-        
-        # Generate summary report
-        regressor.create_summary_report()
-        
-        # =====================
-        # CLASSIFICATION PIPELINE
-        # =====================
-        print("\n\n🎯 STARTING CLASSIFICATION PIPELINE (5% Increase Prediction)")
-        print("-" * 50)
-        
-        # Initialize classifier
-        classifier = StockPriceClassifier(STOCK_SYMBOL, "indonesian_stock_classification")
-        
-        # Load data (reuse same data loading logic)
-        classifier.load_data(period="2y")
-        
-        # Engineer features for classification
-        classifier.engineer_features()
-        
-        # Train classification models
-        classification_models, best_classification_model = classifier.train_models()
-        
-        # Generate summary report
-        classifier.create_summary_report()
-        
-        # =====================
-        # FINAL SUMMARY
-        # =====================
-        print("\n\n" + "="*80)
-        print("🎉 COMPLETE ANALYSIS SUMMARY")
-        print("="*80)
-        
-        print(f"\n📈 REGRESSION RESULTS:")
-        print(f"   Best Model: {best_regression_model.upper()}")
-        print(f"   RMSE: {regression_models[best_regression_model]['rmse']:.4f}")
-        print(f"   Next Day Price Forecast: Available ✅")
-        
-        print(f"\n📊 CLASSIFICATION RESULTS:")
-        print(f"   Best Model: {best_classification_model.upper()}")
-        print(f"   F1-Score: {classification_models[best_classification_model]['f1_score']:.4f}")
-        print(f"   5% Increase Prediction: Available ✅")
-        
-        print(f"\n🔬 MLFLOW EXPERIMENTS:")
-        print(f"   Regression Experiment: 'indonesian_stock_regression'")
-        print(f"   Classification Experiment: 'indonesian_stock_classification'")
-        
-       
-        
-    except Exception as e:
-        print(f"❌ Error in pipeline: {e}")
-        raise
 
 
 def run_regression():
