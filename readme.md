@@ -17,7 +17,6 @@ Develop a machine learning model to forecast the closing price of Indonesian sto
 
 ## 3. Quick Start
 
-
 ### 3.1 Installation
 
 ```bash
@@ -54,7 +53,7 @@ pip install TA-Lib
 
 ```bash
 # The script will automatically detect available packages and adapt
-python stock_forecasting.py
+python main.py
 ```
 
 ### 3.3 View Results in MLflow
@@ -70,10 +69,12 @@ mlflow server --host 127.0.0.1 --port 8080
 ## 4. Project Structure
 
 ```
-├── stock_forecasting.py      # Main pipeline script
+├── main.py      # Main pipeline script
+├── venv/        # virtual environment
 ├── requirements.txt          # Python dependencies
 ├── README.md                # This file
-├── data_exploration.png     # Generated data visualization
+├── data_exploration.png     # Generated data exploration viz
+├── regressor_image          # Generated Test Data Prediction Viz
 └── mlruns/                  # MLflow experiments directory
 ```
 
@@ -178,47 +179,52 @@ The pipeline generates:
 
 ## 12. Results
 
+Full results are in `sample_run_results/console_report.md`.
+
 ```
 ============================================================
 STOCK PRICE FORECASTING REPORT - BBCA.JK
 ============================================================
 
 Data Summary:
-- Period: 2023-07-31 to 2025-07-29
-- Total samples: 473
+- Period: 2020-07-29 to 2025-07-29
+- Total samples: 1200
 - Features used: 42
 
 Model Performance:
 - LINEAR_REGRESSION:
-  * RMSE: 174.5455
-  * MAE: 139.2851
-  * R²: 0.7162
+  * RMSE: 164.6530
+  * MAE: 125.8647
+  * R²: 0.8146
 - RANDOM_FOREST:
-  * RMSE: 155.8595
-  * MAE: 123.9216
-  * R²: 0.7738
+  * RMSE: 213.5445
+  * MAE: 168.3006
+  * R²: 0.6881
 - GRADIENT_BOOSTING:
-  * RMSE: 209.9020
-  * MAE: 169.9692
-  * R²: 0.5896
+  * RMSE: 207.0558
+  * MAE: 161.6780
+  * R²: 0.7068
 - XGBOOST:
-  * RMSE: 209.5710
-  * MAE: 164.5537
-  * R²: 0.5909
+  * RMSE: 227.3087
+  * MAE: 180.3070
+  * R²: 0.6466
 - LIGHTGBM:
-  * RMSE: 193.2898
-  * MAE: 160.7454
-  * R²: 0.6520
+  * RMSE: 213.5368
+  * MAE: 166.5430
+  * R²: 0.6881
 
-Best Model: RANDOM_FOREST
-RMSE: 155.8595
+Best Model: LINEAR_REGRESSION
+RMSE: 164.6530
 
 === Forecast Results ===
-Model used: random_forest
+Model used: linear_regression
 Current price at 2025-07-29: 8400.00
-Predicted next day price at 2025-07-30: 8374.44
-Predicted change: -25.56 (-0.30%)
+Predicted next day price at 2025-07-30: 8474.33
+Predicted change: 74.33 (0.88%)
 ```
+
+MLFlow Snapshot
+![mlflow snapshot](sample_run_results/mlflow_snapshot.png)
 
 ## 13. Advanced Usage
 

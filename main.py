@@ -178,25 +178,25 @@ class StockPriceRegressor:
         if TALIB_AVAILABLE:
             try:
                 # RSI
-                df['RSI'] = talib.RSI(df['Close'].values, timeperiod=14)
+                df['RSI'] = talib.RSI(df['Close'].values, timeperiod=14) # type: ignore
                 
                 # MACD
-                macd, macd_signal, macd_hist = talib.MACD(df['Close'].values)
+                macd, macd_signal, macd_hist = talib.MACD(df['Close'].values) # type: ignore
                 df['MACD'] = macd
                 df['MACD_Signal'] = macd_signal
                 df['MACD_Hist'] = macd_hist
                 
                 # Bollinger Bands
-                bb_upper, bb_middle, bb_lower = talib.BBANDS(df['Close'].values)
+                bb_upper, bb_middle, bb_lower = talib.BBANDS(df['Close'].values) # type: ignore
                 df['BB_Upper'] = bb_upper
                 df['BB_Lower'] = bb_lower
                 df['BB_Width'] = (bb_upper - bb_lower) / bb_middle
                 df['BB_Position'] = (df['Close'] - bb_lower) / (bb_upper - bb_lower)
                 
                 # Stochastic Oscillator
-                df['Stoch_K'], df['Stoch_D'] = talib.STOCH(df['High'].values, 
-                                                          df['Low'].values, 
-                                                          df['Close'].values)
+                df['Stoch_K'], df['Stoch_D'] = talib.STOCH(df['High'].values,  # type: ignore
+                                                          df['Low'].values,  # type: ignore
+                                                          df['Close'].values) # type: ignore
                 print("TA-Lib indicators added successfully")
             except Exception as e:
                 print(f"Error with TA-Lib indicators: {e}")
@@ -206,8 +206,8 @@ class StockPriceRegressor:
             
             # Simple RSI calculation
             delta = df['Close'].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean() # type: ignore
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean() # type: ignore
             rs = gain / loss
             df['RSI'] = 100 - (100 / (1 + rs))
             
@@ -408,16 +408,16 @@ class StockPriceRegressor:
                 
                 # Log model with appropriate MLflow integration
                 if model_name == 'xgboost' and XGB_AVAILABLE:
-                    mlflow.xgboost.log_model(model, name="model",signature=self.signature)
+                    mlflow.xgboost.log_model(model, name="model",signature=self.signature) # type: ignore
                 elif model_name == 'lightgbm' and LGB_AVAILABLE:
-                    mlflow.lightgbm.log_model(model, name="model",signature=self.signature)
+                    mlflow.lightgbm.log_model(model, name="model",signature=self.signature) # type: ignore
                 else:
-                    mlflow.sklearn.log_model(model, name="model",signature=self.signature)
+                    mlflow.sklearn.log_model(model, name="model",signature=self.signature) # type: ignore
                 
                 # Create and log prediction plot
                 os.makedirs('regressor_image', exist_ok=True)
                 plt.figure(figsize=(12, 6))
-                plt.plot(y_test.values[:100], label='Actual', alpha=0.7)
+                plt.plot(y_test.values[:100], label='Actual', alpha=0.7) # type: ignore
                 plt.plot(y_pred[:100], label='Predicted', alpha=0.7)
                 plt.title(f'{model_name} - Actual vs Predicted (First 100 test samples)')
                 plt.xlabel('Sample')
@@ -454,11 +454,11 @@ class StockPriceRegressor:
             
             best_model_obj = self.models[best_model]['model']
             if best_model == 'xgboost' and XGB_AVAILABLE:
-                mlflow.xgboost.log_model(best_model_obj, name="best_model", registered_model_name=f"{self.stock_symbol}_regressor",signature=self.signature)
+                mlflow.xgboost.log_model(best_model_obj, name="best_model", registered_model_name=f"{self.stock_symbol}_regressor",signature=self.signature) # type: ignore
             elif best_model == 'lightgbm' and LGB_AVAILABLE:
-                mlflow.lightgbm.log_model(best_model_obj, name="best_model", registered_model_name=f"{self.stock_symbol}_regressor",signature=self.signature)
+                mlflow.lightgbm.log_model(best_model_obj, name="best_model", registered_model_name=f"{self.stock_symbol}_regressor",signature=self.signature) # type: ignore
             else:
-                mlflow.sklearn.log_model(best_model_obj, name="best_model", registered_model_name=f"{self.stock_symbol}_regressor",signature=self.signature)
+                mlflow.sklearn.log_model(best_model_obj, name="best_model", registered_model_name=f"{self.stock_symbol}_regressor",signature=self.signature) # type: ignore
         
         return self.models, best_model
     
@@ -479,16 +479,16 @@ class StockPriceRegressor:
         model = self.models[model_name]['model']
         
         # Get the latest features
-        latest_features = self.features.iloc[-1:].copy()
+        latest_features = self.features.iloc[-1:].copy() # type: ignore
         
         #scaled the input
         latest_features_scaled = self.scaler.transform(latest_features)
         forecast = model.predict(latest_features_scaled)[0]
         
         #forecast tomorrow's price
-        current_price = self.data['Close'].iloc[-1]
-        today = self.data.iloc[-1].name.strftime('%Y-%m-%d')
-        forecast_date = (self.data.index[-1] + timedelta(days=1)).strftime('%Y-%m-%d')
+        current_price = self.data['Close'].iloc[-1] # type: ignore
+        today = self.data.iloc[-1].name.strftime('%Y-%m-%d') # type: ignore
+        forecast_date = (self.data.index[-1] + timedelta(days=1)).strftime('%Y-%m-%d') # type: ignore
         print(f"\n=== Forecast Results ===")
         print(f"Model used: {model_name}")
         print(f"Current price at {today}: {current_price:.2f}")
@@ -507,9 +507,9 @@ class StockPriceRegressor:
         print("="*60)
         
         print(f"\nData Summary:")
-        print(f"- Period: {self.data.index[0].date()} to {self.data.index[-1].date()}")
-        print(f"- Total samples: {len(self.data)}")
-        print(f"- Features used: {len(self.features.columns)}")
+        print(f"- Period: {self.data.index[0].date()} to {self.data.index[-1].date()}") # type: ignore
+        print(f"- Total samples: {len(self.data)}") # type: ignore
+        print(f"- Features used: {len(self.features.columns)}")# type: ignore
         
         print(f"\nModel Performance:")
         for model_name, results in self.models.items():
@@ -538,9 +538,9 @@ def run_regression():
     try:
         print("🎯 RUNNING REGRESSION PIPELINE")
         print("="*50)
-        
-        regressor = StockPriceRegressor(STOCK_SYMBOL, "stock_regression_forecasting")
-        regressor.load_data(period="2y",interval='1d')
+        today = datetime.now().strftime('%Y-%m-%d')
+        regressor = StockPriceRegressor(STOCK_SYMBOL, f"[{today}] stock_regression_forecasting")
+        regressor.load_data(period="5y",interval='1d')
         regressor.explore_data()
         regressor.engineer_features()
         regressor.train_models()
