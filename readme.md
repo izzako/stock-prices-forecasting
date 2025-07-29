@@ -2,83 +2,72 @@
 
 This project implements a comprehensive machine learning pipeline for forecasting Indonesian stock prices using various regression models and MLflow for experiment tracking.
 
-## 🎯 Objective
+## 1. Goals
 
 Develop a machine learning model to forecast the closing price of Indonesian stocks for the next trading day, demonstrating MLOps principles through MLflow integration.
 
-## 📊 Features
+## 2. Features
 
-- **Data Collection**: Automated data retrieval using `yfinance`
-- **Feature Engineering**: 50+ technical indicators and lag features
+- **Data Collection**: Data retrieval using `yfinance`
+- **Feature Engineering**: Additional technical indicators (Comprehensive list on: **6.1 Features Generated**).
 - **Multiple Models**: Linear Regression, Random Forest, Gradient Boosting, XGBoost, LightGBM
-- **Baseline Comparison**: Naive and moving average baselines
+- **Baseline Comparison**: We use moving average as baselines
 - **MLflow Integration**: Complete experiment tracking and model management
 - **Automated Model Selection**: Best model selection based on RMSE
 
-## 🚀 Quick Start
+## 3. Quick Start
 
-## 🚀 Quick Start (Mac Users)
 
-### Option 1: Automated Setup (Recommended for Mac)
-
-```bash
-# Make the setup script executable
-chmod +x mac_setup.sh
-
-# Run the automated setup
-./mac_setup.sh
-
-# Run the pipeline
-python3 stock_forecasting.py
-```
-
-### Option 2: Manual Installation
+### 3.1 Installation
 
 ```bash
-# Install core dependencies first
-pip3 install yfinance pandas numpy scikit-learn mlflow matplotlib seaborn requests
+# Clone the repo using
+git clone git@github.com:izzako/stock-prices-forecasting.git
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install core dependencies
+pip install yfinance pandas numpy scikit-learn mlflow matplotlib seaborn requests
 
 # Try to install optional packages (these might fail, but the script will still work)
-pip3 install xgboost  # Optional
-pip3 install lightgbm  # Optional
-
-# For TA-Lib (optional):
-brew install ta-lib
-pip3 install TA-Lib
-```
-
-### 1. Installation
-
-```bash
-# Clone or download the project files
-# Install dependencies
-pip install -r requirements.txt
+pip install xgboost  # Optional
+pip install lightgbm  # Optional
 
 # For TA-Lib on Windows, you might need to install from wheel:
 # pip install TA-Lib-0.4.28-cp39-cp39-win_amd64.whl
 
 # For TA-Lib on Ubuntu/Linux:
 # sudo apt-get install libta-lib-dev
+
+# For TA-Lib on Mac:
+# brew install ta-lib
+
+pip install TA-Lib
+
+# or using requirements.txt
+# pip install -r requirements.txt
 ```
 
-### 2. Run the Pipeline
+### 3.2 Run the Pipeline
 
 ```bash
 # The script will automatically detect available packages and adapt
-python3 stock_forecasting.py
+python stock_forecasting.py
 ```
 
-### 3. View Results in MLflow
+### 3.3 View Results in MLflow
 
 ```bash
-# Start MLflow UI
-mlflow ui
+# Start MLflow UI on custom port (8080)
+mlflow server --host 127.0.0.1 --port 8080
 
 # Open browser and navigate to:
-# http://localhost:5000
+# http://localhost:8080
 ```
 
-## 📁 Project Structure
+## 4. Project Structure
 
 ```
 ├── stock_forecasting.py      # Main pipeline script
@@ -88,10 +77,10 @@ mlflow ui
 └── mlruns/                  # MLflow experiments directory
 ```
 
-## 🔧 Configuration
+## 5. Config
+### 5.1 Stock Selection
 
-### Stock Selection
-The default stock is Bank Central Asia (BBCA.JK). You can change it by modifying the `STOCK_SYMBOL` variable in the `main()` function:
+The default stock is Bank Central Asia (`BBCA.JK`). You can change it by modifying the `STOCK_SYMBOL` variable in the `run_regression ()` function:
 
 ```python
 STOCK_SYMBOL = "ASII.JK"  # Astra International
@@ -101,77 +90,76 @@ STOCK_SYMBOL = "TLKM.JK"  # Telkom Indonesia
 STOCK_SYMBOL = "UNTR.JK"  # United Tractors
 ```
 
-### Data Period
+### 5.2 Data Period
 Modify the data collection period:
 
 ```python
 forecaster.load_data(period="5y")  # 5 years of data
 ```
 
-## 🎛️ Model Configuration
+## 6. Model Options
 
 The pipeline includes five regression models:
 
 1. **Linear Regression**: Simple baseline with feature scaling
-2. **Random Forest**: Ensemble method with 100 trees
+2. **Random Forest**: Ensemble method with 200 trees
 3. **Gradient Boosting**: Sequential ensemble learning
 4. **XGBoost**: Optimized gradient boosting
 5. **LightGBM**: Fast gradient boosting framework
 
-## 📈 Features Generated
+## 7. Features Generated
 
-### Price-based Features
+### 7.1 Price-based Features
 - High-Low percentage
 - Price change (returns)
 - Moving averages (5, 10, 20, 50 days)
 - Moving average ratios
 
-### Technical Indicators (using TA-Lib)
+### 7.2 Technical Indicators (using TA-Lib)
 - RSI (Relative Strength Index)
 - MACD (Moving Average Convergence Divergence)
 - Bollinger Bands
 - Stochastic Oscillator
 
-### Lag Features
-- Price lags (1, 2, 3, 5, 10 days)
-- Volume lags
-- Return lags
+### 7.3 Lag Features
+- Price lags (1, 5, 10 days)
+- Volume lags (1, 5, 10 days)
+- Return lags (1, 5, 10 days)
 
-### Rolling Statistics
-- Rolling max/min prices
-- Rolling volume averages
-- Volatility measures
+### 7.4 Rolling Statistics
+- Rolling max/min prices (5, 10, 20 days)
+- Rolling volume averages (5, 10, 20 days)
+- Volatility measures (5, 10, 20 days)
 
-## 📊 Model Evaluation
+## 8. Model Evaluation
 
-### Metrics Used
+### 8.1 Metrics Used
 - **RMSE**: Root Mean Square Error
 - **MAE**: Mean Absolute Error
 - **R²**: Coefficient of determination
 
-### Baseline Models
-- **Naive Forecast**: Previous day's price
+### 8.2 Baseline Models
 - **Moving Average**: 5-day moving average
 
-## 🔬 MLflow Integration
+## 9. MLflow Integration
 
-### Experiment Tracking
+### 9.1 Experiment Tracking
 - Model parameters and hyperparameters
 - Performance metrics (RMSE, MAE, R²)
 - Baseline comparisons
 - Improvement percentages
 
-### Model Management
+### 9.2 Model Management
 - Automatic model logging
 - Best model registration
 - Artifact storage (plots, model weights)
 
-### Reproducibility
+### 9.3 Reproducibility
 - Random seed management
 - Parameter logging
 - Environment tracking
 
-## 📋 Output
+## 10. Output
 
 The pipeline generates:
 
@@ -180,114 +168,67 @@ The pipeline generates:
 3. **Console Report**: Comprehensive performance summary
 4. **MLflow Experiments**: Detailed tracking in web UI
 
-## 🎯 Expected Results
+## 11. Expected Results
 
 - **Training Time**: 2-5 minutes depending on data size
-- **Model Performance**: Typically R² > 0.8 for tree-based models
+- **Model Performance**: Almost 0.7-0.8 R² performances for tree-based models
 - **Forecast Accuracy**: Usually within 2-5% of actual next-day price
 
-## 🚨 Troubleshooting
 
-## 🚨 Troubleshooting (Mac-Specific)
 
-### Common Mac Issues
-
-1. **XGBoost/LightGBM Installation Issues**:
-   ```bash
-   # If you get compilation errors, try using conda instead:
-   conda install -c conda-forge xgboost lightgbm
-   
-   # Or use pre-compiled wheels:
-   pip3 install --only-binary=all xgboost lightgbm
-   
-   # If all else fails, the script works fine without them!
-   ```
-
-2. **TA-Lib Installation on Mac**:
-   ```bash
-   # Install TA-Lib system library first
-   brew install ta-lib
-   
-   # Then install Python wrapper
-   pip3 install TA-Lib
-   
-   # If it fails with M1/M2 Mac:
-   arch -arm64 brew install ta-lib
-   arch -arm64 pip3 install TA-Lib
-   ```
-
-3. **Python Version Issues**:
-   ```bash
-   # Make sure you're using Python 3.8+
-   python3 --version
-   
-   # If you have multiple Python versions:
-   python3.9 -m pip install -r requirements.txt
-   python3.9 stock_forecasting.py
-   ```
-
-4. **M1/M2 Mac Specific Issues**:
-   ```bash
-   # If you get architecture errors:
-   arch -arm64 brew install python@3.9
-   arch -arm64 pip3 install -r requirements.txt
-   ```
-
-### Common Issues
-
-1. **TA-Lib Installation Error**:
-   ```bash
-   # Windows: Download wheel from https://www.lfd.uci.edu/~gohlke/pythonlibs/#ta-lib
-   pip install TA_Lib-0.4.28-cp39-cp39-win_amd64.whl
-   
-   # Linux/Mac:
-   sudo apt-get install libta-lib-dev  # Ubuntu
-   brew install ta-lib  # macOS
-   ```
-
-2. **yfinance Data Issues**:
-   - Check internet connection
-   - Verify stock symbol format (e.g., "BBCA.JK" for Indonesian stocks)
-   - Try different time periods if data is sparse
-
-3. **MLflow UI Not Loading**:
-   ```bash
-   # Kill existing MLflow processes
-   pkill -f mlflow
-   
-   # Restart MLflow UI
-   mlflow ui --host 0.0.0.0 --port 5000
-   ```
-
-## 📊 Sample Results
+## 12. Results
 
 ```
-=== STOCK PRICE FORECASTING REPORT - BBCA.JK ===
+============================================================
+STOCK PRICE FORECASTING REPORT - BBCA.JK
+============================================================
 
 Data Summary:
-- Period: 2022-01-01 to 2024-01-25
-- Total samples: 523
-- Features used: 45
+- Period: 2023-07-31 to 2025-07-29
+- Total samples: 473
+- Features used: 42
 
 Model Performance:
-- LINEAR_REGRESSION: RMSE: 245.67, MAE: 189.34, R²: 0.823
-- RANDOM_FOREST: RMSE: 198.45, MAE: 145.23, R²: 0.887
-- XGBOOST: RMSE: 186.23, MAE: 134.56, R²: 0.901
+- LINEAR_REGRESSION:
+  * RMSE: 174.5455
+  * MAE: 139.2851
+  * R²: 0.7162
+- RANDOM_FOREST:
+  * RMSE: 155.8595
+  * MAE: 123.9216
+  * R²: 0.7738
+- GRADIENT_BOOSTING:
+  * RMSE: 209.9020
+  * MAE: 169.9692
+  * R²: 0.5896
+- XGBOOST:
+  * RMSE: 209.5710
+  * MAE: 164.5537
+  * R²: 0.5909
+- LIGHTGBM:
+  * RMSE: 193.2898
+  * MAE: 160.7454
+  * R²: 0.6520
 
-Best Model: XGBOOST
-Current price: 8875.00
-Predicted next day price: 8920.50
-Predicted change: +45.50 (+0.51%)
+Best Model: RANDOM_FOREST
+RMSE: 155.8595
+
+=== Forecast Results ===
+Model used: random_forest
+Current price at 2025-07-29: 8400.00
+Predicted next day price at 2025-07-30: 8374.44
+Predicted change: -25.56 (-0.30%)
 ```
 
-## 🏆 Advanced Usage
+## 13. Advanced Usage
 
-### Custom Feature Engineering
+**Custom Feature Engineering**
 ```python
 # Add custom features in the engineer_features method
 df['Custom_Indicator'] = your_custom_calculation(df)
 ```
 
+<!-- 
 ### Hyperparameter Tuning
 ```python
 # Add GridSearchCV or RandomizedSearchCV
@@ -303,27 +244,4 @@ stocks = ['BBCA.JK', 'ASII.JK', 'TLKM.JK']
 for stock in stocks:
     forecaster = StockPriceForecaster(stock)
     # Run pipeline for each stock
-```
-
-## 📝 License
-
-This project is for educational and research purposes. Please ensure compliance with your local financial regulations when using stock market data.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## 📞 Support
-
-For questions or issues:
-- Check the troubleshooting section
-- Review MLflow documentation: https://mlflow.org/docs/latest/index.html
-- Check yfinance documentation: https://pypi.org/project/yfinance/
-
----
-
-**Note**: This is a technical demonstration. Stock price prediction involves significant risk, and this model should not be used for actual trading decisions without proper validation and risk management.
+``` -->
